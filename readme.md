@@ -29,7 +29,7 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 
 1. Start the server:
    ```
-   uvicorn main:app --reload
+   fastapi dev main.py
    ```
 2. The API will be available at `http://localhost:8000`
 
