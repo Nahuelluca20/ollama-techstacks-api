@@ -12,7 +12,7 @@ import ollama
 from info_list import info
 
 from fastapi.middleware.cors import CORSMiddleware
-from kv_operations import kv_put, kv_get, test_kv_access
+from kv_operations import kv_delete, kv_put, kv_get, test_kv_access
 
 load_dotenv()
 
@@ -40,9 +40,6 @@ async def lifespan(app: FastAPI):
             documents=[combined_text],
             metadatas=[{"description": description, "links": links}],
         )
-
-        # Guardar en KV
-        kv_put(f"item_{i}", combined_text)
 
     # Store collection in app state
     app.state.collection = collection
@@ -135,14 +132,29 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
+class KVRequest(BaseModel):
+    key_name: str
+    value: str
+
+
+@app.put("/api/kv-value")
+async def add_kv_value(request: KVRequest):
+    val = kv_put(request.key_name, request.value)
+    return {"success": val}
+
+
+@app.get("/api/kv-value/{key_name}")
+async def get_kv_value(key_name: str):
+    val = kv_get(key_name)
+    return {"value": val}
+
+
+@app.delete("/api/kv-value/{key_name}")
+async def delete_kv_value(key_name: str):
+    success = kv_delete(key_name)
+    return {"success": success}
+
+
 @app.get("/api/test-kv")
 async def test_kv():
     test_kv_access()
-
-
-@app.get("/api/kv/{item_id}")
-async def get_kv_item(item_id: str):
-    item = kv_get(f"item_{item_id}")
-    if item:
-        return {"item": item}
-    raise HTTPException(status_code=404, detail="Item not found")

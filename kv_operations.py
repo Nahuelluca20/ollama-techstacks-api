@@ -10,27 +10,37 @@ NAMESPACE_ID = os.getenv("NAMESPACE_ID")
 KV_URL = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/storage/kv/namespaces/{NAMESPACE_ID}"
 
 
-def kv_put(key: str, value: str) -> bool:
+def kv_put(key_name: str, value: str) -> bool:
     headers = {
         "Authorization": f"Bearer {KV_AUTH}",
         "Content-Type": "text/plain",
     }
-    response = requests.put(f"{KV_URL}/{key}", headers=headers, data=value)
+    response = requests.put(f"{KV_URL}/values/{key_name}", headers=headers, data=value)
     return response.status_code == 200
 
 
-def kv_get(key: str) -> str:
+def kv_get(key_name: str) -> str:
     headers = {
+        "Content-Type": "*/*",
         "Authorization": f"Bearer {KV_AUTH}",
     }
-    response = requests.get(f"{KV_URL}/{key}", headers=headers)
+    response = requests.get(f"{KV_URL}/values/{key_name}", headers=headers)
     if response.status_code == 200:
         return response.text
     return ""
 
 
+def kv_delete(key_name: str) -> bool:
+    headers = {
+        "Authorization": f"Bearer {KV_AUTH}",
+    }
+    response = requests.delete(f"{KV_URL}/values/{key_name}", headers=headers)
+    print(response)
+    return response.status_code == 200
+
+
 def test_kv_access() -> None:
-    url = f"https://api.cloudflare.com/client/v4/accounts/{ACCOUNT_ID}/storage/kv/namespaces/{NAMESPACE_ID}"
+    url = f"{KV_URL}"
     headers = {
         "Authorization": f"Bearer {KV_AUTH}",
     }
