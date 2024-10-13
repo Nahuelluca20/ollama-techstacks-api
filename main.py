@@ -1,6 +1,9 @@
+import os
 from typing import Union
 from contextlib import asynccontextmanager
 
+from annoy import AnnoyIndex
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
 from pydantic import BaseModel
 
@@ -9,10 +12,17 @@ import ollama
 from info_list import info
 
 from fastapi.middleware.cors import CORSMiddleware
+from kv_operations import kv_put, kv_get, test_kv_access
+
+load_dotenv()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    kv_auth = os.getenv("KV_AUTH")
+    if not kv_auth:
+        raise ValueError("KV_AUTH no está configurado en el archivo .env")
+
     client = chromadb.Client()
     collection = client.create_collection("tech_stacks")
 
@@ -31,6 +41,9 @@ async def lifespan(app: FastAPI):
             metadatas=[{"description": description, "links": links}],
         )
 
+        # Guardar en KV
+        kv_put(f"item_{i}", combined_text)
+
     # Store collection in app state
     app.state.collection = collection
     yield
@@ -47,6 +60,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+embedding_dimension = 768
+annoy_index = AnnoyIndex(embedding_dimension, "angular")
+
+annoy_cache = {}
 
 
 class Item(BaseModel):
@@ -68,40 +86,6 @@ def api_root():
 @app.get("/api/items/{item_id}")
 def read_items(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
-
-
-# @app.get("/api/ollama")
-# async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
-#     if prompt == None:
-#         return {"error": "Prompt not provided"}
-
-#     response = ollama.embeddings(model="mxbai-embed-large", prompt=prompt)
-
-#     collection = request.app.state.collection
-#     results = collection.query(
-#         query_embeddings=[response["embedding"]],
-#         n_results=3,
-#         include=["metadatas", "distances"],
-#     )
-
-#     if results["metadatas"]:
-#         metadata = results["metadatas"][0][0]
-#         document = results["documents"][0][0]
-#         link = metadata["links"].split()[0]
-
-#         context = f"Based on the following information: {document}\n\nRelevant link: {link}\n\n"
-#         prompt_for_ollama = (
-#             context
-#             + f"Please provide an elaborated response to the following query: {prompt}"
-#         )
-
-#         generation_response = ollama.generate(
-#             model="llama3.1", prompt=prompt_for_ollama
-#         )
-
-#         return {"link": link, "response": generation_response["response"]}
-#     else:
-#         return {"Answer": "No se encontraron resultados"}
 
 
 @app.get("/api/ollama")
@@ -130,7 +114,7 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
             prompt_for_ollama = context + f" Provide a brief response to: {prompt}"
 
             generation_response = ollama.generate(
-                model="llama3.1",
+                model="llama3.2",
                 prompt=prompt_for_ollama,
                 options={"num_predict": 50},
             )
@@ -149,3 +133,16 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+
+@app.get("/api/test-kv")
+async def test_kv():
+    test_kv_access()
+
+
+@app.get("/api/kv/{item_id}")
+async def get_kv_item(item_id: str):
+    item = kv_get(f"item_{item_id}")
+    if item:
+        return {"item": item}
+    raise HTTPException(status_code=404, detail="Item not found")
