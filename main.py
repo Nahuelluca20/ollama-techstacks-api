@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from annoy import AnnoyIndex
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request, HTTPException
+import numpy as np
 from pydantic import BaseModel
 
 import chromadb
@@ -15,6 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from kv_operations import kv_delete, kv_put, kv_get, test_kv_access
 
 load_dotenv()
+
+embedding_dimension = 1024
 
 
 @asynccontextmanager
@@ -58,11 +61,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-embedding_dimension = 768
-annoy_index = AnnoyIndex(embedding_dimension, "angular")
-
-annoy_cache = {}
-
 
 class Item(BaseModel):
     name: str
@@ -75,22 +73,13 @@ def read_root():
     return {"root": "Hello world!"}
 
 
-@app.get("/api")
-def api_root():
-    return {"Hello": "api route"}
-
-
-@app.get("/api/items/{item_id}")
-def read_items(item_id: int, q: Union[str, None] = None):
-    return {"item_id": item_id, "q": q}
-
-
 @app.get("/api/ollama")
 async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
     if prompt is None:
         raise HTTPException(status_code=400, detail="Prompt not provided")
 
     embed_response = ollama.embeddings(model="mxbai-embed-large", prompt=prompt)
+    prompt_embedding = np.array(embed_response["embedding"]).astype("float32")
 
     collection = request.app.state.collection
     results = collection.query(
@@ -116,12 +105,17 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
                 options={"num_predict": 50},
             )
 
+            response_text = generation_response["response"].strip()
             responses.append(
                 {
                     "link": link,
-                    "short_response": generation_response["response"].strip(),
+                    "short_response": response_text,
                 }
             )
+
+            annoy_index.add_item(len(prompt_cache), prompt_embedding)
+            prompt_cache[len(prompt_cache)] = prompt
+            await kv_put(prompt, response_text)
 
         return {"results": responses}
     except (IndexError, KeyError) as e:
