@@ -39,6 +39,10 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 - `GET /api`: Basic API route
 - `GET /api/items/{item_id}`: Example route with path and query parameters
 - `GET /api/ollama`: Main endpoint for tech stack queries
+- `PUT /api/kv-value`: Adds a value to the key-value database
+- `GET /api/kv-value/{key_name}`: Retrieves a value from the key-value database
+- `DELETE /api/kv-value/{key_name}`: Deletes a value from the key-value database
+- `GET /api/test-kv`: Tests access to the key-value database
 
 ## How it works
 
