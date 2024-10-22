@@ -8,28 +8,37 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 - Uses Chroma DB for embedding storage and search
 - Integration with Ollama for embedding generation and responses
 - CORS handling to allow requests from a local frontend
+- Key-value storage with Redis
+- Containerization with Docker
 
 ## Requirements
 
-- Python 3.7+
-- FastAPI
-- Chroma DB
-- Ollama
-- Pydantic
+- Docker and Docker Compose
+- Python 3.7+ (for local development)
 
-## Installation
+## Installation and Usage with Docker
+
+1. Clone this repository
+2. Navigate to the project directory
+3. Run the following command to start the services:
+   ```
+   docker-compose up -d
+   ```
+4. The API will be available at `http://localhost:8000`
+
+## Installation for Local Development
 
 1. Clone this repository
 2. Install dependencies:
    ```
-   pip install fastapi chromadb ollama pydantic
+   pip install fastapi chromadb ollama pydantic redis
    ```
 
-## Usage
+## Usage in Local Development
 
 1. Start the server:
    ```
-   fastapi dev main.py
+   uvicorn main:app --reload
    ```
 2. The API will be available at `http://localhost:8000`
 
@@ -50,6 +59,7 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 3. The most similar documents are searched for in the vector database.
 4. Ollama is used to generate short responses based on the found information.
 5. Responses are returned along with relevant links.
+6. Redis is used for key-value storage for additional data.
 
 ## Contributing
 
