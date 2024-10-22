@@ -1,3 +1,4 @@
+import json
 import os
 from typing import Union
 from contextlib import asynccontextmanager
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 
 import chromadb
 import ollama
+import redis
 from info_list import info
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -61,6 +63,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+redis_client = redis.StrictRedis(host="localhost", port=6379, db=0)
+
 
 class Item(BaseModel):
     name: str
@@ -73,13 +77,20 @@ def read_root():
     return {"root": "Hello world!"}
 
 
+def cosine_similarity(vecA, vecB):
+    dot_product = np.dot(vecA, vecB)
+    normA = np.linalg.norm(vecA)
+    normB = np.linalg.norm(vecB)
+    return dot_product / (normA * normB)
+
+
 @app.get("/api/ollama")
 async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
     if prompt is None:
         raise HTTPException(status_code=400, detail="Prompt not provided")
 
     embed_response = ollama.embeddings(model="mxbai-embed-large", prompt=prompt)
-    prompt_embedding = np.array(embed_response["embedding"]).astype("float32")
+    embedding_vector = np.array(embed_response["embedding"])
 
     collection = request.app.state.collection
     results = collection.query(
@@ -93,6 +104,44 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
 
     try:
         responses = []
+
+        # Search for similarity in cached embeddings in Redis
+        keys = redis_client.keys("embedding:*")
+        best_match = None
+        best_similarity = -1
+        print("keys", keys)
+
+        for key in keys:
+            # Retrieve stored embedding
+            data = json.loads(redis_client.get(key))
+            stored_embedding = np.array(data["embedding"])
+
+            # Compare using cosine similarity
+            similarity = cosine_similarity(embedding_vector, stored_embedding)
+            if similarity > best_similarity:
+                best_similarity = similarity
+                best_match = data
+        print("best_match", best_match)
+
+        THRESHOLD = 0.8
+        if best_similarity > THRESHOLD:
+
+            print(
+                {
+                    "message": "Similar response found in cache",
+                    "similarity": best_similarity,
+                    "cached_response": best_match["response"],
+                }
+            )
+
+            responses.append(
+                {
+                    "link": "link",
+                    "short_response": best_match["response"],
+                }
+            )
+            return {"results": responses}
+
         for metadata, document in zip(results["metadatas"][0], results["documents"][0]):
             link = metadata["links"].split()[0]
 
@@ -104,6 +153,9 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
                 prompt=prompt_for_ollama,
                 options={"num_predict": 50},
             )
+            results = collection.query(
+                query_embeddings=[embed_response["embedding"]], n_results=3
+            )
 
             response_text = generation_response["response"].strip()
             responses.append(
@@ -113,9 +165,14 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
                 }
             )
 
-            annoy_index.add_item(len(prompt_cache), prompt_embedding)
-            prompt_cache[len(prompt_cache)] = prompt
-            await kv_put(prompt, response_text)
+            # Store the new embedding and its response in Redis
+            key = f"embedding:{prompt}"
+            redis_data = {
+                "embedding": embedding_vector.tolist(),  # store the embedding
+                "response": responses[0]["short_response"],  # save the first answer
+            }
+
+            redis_client.set(key, json.dumps(redis_data))
 
         return {"results": responses}
     except (IndexError, KeyError) as e:
