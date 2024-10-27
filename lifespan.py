@@ -7,9 +7,6 @@ from info_list import info
 
 @asynccontextmanager
 async def lifespan(app):
-    kv_auth = os.getenv("KV_AUTH")
-    if not kv_auth:
-        raise ValueError("KV_AUTH not configured in .env")
 
     client = chromadb.Client()
     collection = client.create_collection("tech_stacks")

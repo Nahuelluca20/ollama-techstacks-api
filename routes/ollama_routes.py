@@ -35,7 +35,6 @@ async def ask_ollama(prompt: Union[str, None] = None, request: Request = None):
     responses = []
     for metadata, document in zip(results["metadatas"][0], results["documents"][0]):
         link = metadata["links"].split()[0]
-        print(link)
         context = f"Based on this info: {document[:100]}... Link: {link}"
         prompt_for_ollama = context + f" Provide a brief response to: {prompt}"
 

@@ -11,6 +11,11 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 - Key-value storage with Redis
 - Containerization with Docker
 
+### Semantic Search
+
+It can cache the answers in a redis and answer queries with the same semantic meaning.
+[Semantic Search](./semantic-search.png)
+
 ## Requirements
 
 - Docker and Docker Compose
