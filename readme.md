@@ -14,6 +14,10 @@ This project is an API built with FastAPI that provides tech stack recommendatio
 ### Semantic Search
 
 It can cache the answers in a redis and answer queries with the same semantic meaning.
+
+<div align="center">
+  <img src="rag-system.png">
+</div>
 <div align="center">
   <img src="semantic-search.png">
 </div>

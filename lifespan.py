@@ -1,4 +1,3 @@
-import os
 import ollama
 import chromadb
 from contextlib import asynccontextmanager
